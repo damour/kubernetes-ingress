@@ -199,6 +199,10 @@ func NewLoadBalancerController(kubeClient kubernetes.Interface, resyncPeriod tim
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
+				var name = cur.(*api_v1.Endpoints).Name
+				if name == "kube-controller-manager" || name == "kube-scheduler" {
+					return
+				}
 				glog.V(3).Infof("Endpoints %v changed, syncing",
 					cur.(*api_v1.Endpoints).Name)
 				lbc.syncQueue.enqueue(cur)
@@ -865,9 +869,12 @@ func (lbc *LoadBalancerController) createIngress(ing *extensions.Ingress) (*ngin
 	}
 
 	ingEx.TLSSecrets = make(map[string]*api_v1.Secret)
+	glog.V(3).Infof("TLS len %v", len(ing.Spec.TLS))
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
+		glog.V(3).Infof("Get secret for %v", secretName)
 		secret, err := lbc.client.Core().Secrets(ing.Namespace).Get(secretName, meta_v1.GetOptions{})
+		glog.V(3).Infof("Got secret for %v", secretName)
 		if err != nil {
 			return nil, fmt.Errorf("Error retrieving secret %v for Ingress %v: %v", secretName, ing.Name, err)
 		}
